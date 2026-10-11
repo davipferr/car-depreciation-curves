@@ -1,0 +1,16 @@
+# Node / Framework
+node_modules/
+dist/
+src/.observablehq/cache/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Raw API responses and intermediate frames (re-creatable)
+data_cache/
+
+# Local settings
+.env
