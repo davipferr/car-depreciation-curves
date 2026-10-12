@@ -20,6 +20,9 @@ import httpx
 ROOT = Path(__file__).resolve().parents[1]
 CACHE_DIR = Path(os.environ.get("CDC_CACHE_DIR", ROOT / "data_cache"))
 USER_AGENT = "car-depreciation-curves/0.1 (build-time data loader; python-httpx)"
+# Offline mode: serve everything from the cache, whatever its age, and never touch
+# the network. Used in CI, where FIPE answers 403 to GitHub's runners.
+OFFLINE = os.environ.get("CDC_OFFLINE", "") not in ("", "0", "false")
 
 # Status codes worth retrying: rate limiting and transient server errors.
 RETRY_STATUS = {429, 500, 502, 503, 504}
@@ -115,8 +118,13 @@ def fetch(
     only consulted for real network calls, so cached builds run at full speed.
     """
     path = _cache_path(url, params, data, suffix)
-    if path.exists() and (max_age is None or time.time() - path.stat().st_mtime < max_age.total_seconds()):
+    if path.exists() and (OFFLINE or max_age is None or time.time() - path.stat().st_mtime < max_age.total_seconds()):
         return path.read_bytes()
+    if OFFLINE:
+        raise RuntimeError(
+            f"CDC_OFFLINE is set but {url} {data or params or ''} is not in {CACHE_DIR}. "
+            "Run the build locally (without CDC_OFFLINE) to download it, then commit data_cache/."
+        )
 
     hdrs = {"User-Agent": USER_AGENT} | (headers or {})
     delay = 5.0
@@ -132,6 +140,13 @@ def fetch(
                 resp = client.post(url, params=params, data=data or {"_": ""}, headers=hdrs)
             if resp.status_code == 404:
                 raise NotFound(f"{resp.status_code} for {url}")
+            if resp.status_code == 403:
+                # Not transient: FIPE refuses some networks outright (GitHub Actions
+                # runners, for one), so retrying only wastes time.
+                raise PermissionError(
+                    f"403 Forbidden from {url}: this network is blocked by the server. "
+                    "Download the data from another network and build with CDC_OFFLINE=1."
+                )
             if resp.status_code in RETRY_STATUS:
                 raise httpx.HTTPStatusError(f"{resp.status_code}", request=resp.request, response=resp)
             resp.raise_for_status()

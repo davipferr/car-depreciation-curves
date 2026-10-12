@@ -9,8 +9,10 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# Raw API responses and intermediate frames (re-creatable)
-data_cache/
+# Raw API responses ARE committed: FIPE blocks GitHub's runners (403), so CI
+# builds offline from them. Only the derived frames and partial downloads are ignored.
+data_cache/frames/
+data_cache/**/*.part
 
 # Local settings
 .env

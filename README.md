@@ -95,9 +95,23 @@ It is estimated with the *within* estimator (demean per version, then a 2×2 lea
 - **Undocumented rate limit.** The limiter is adaptive (AIMD-style).
 - **Age.** Next year's model is sold from mid-year, which would give a negative age, so age is floored at 0.
 
-## Refreshing data
+## Refreshing data and deploying
 
-Framework caches each loader's output in `src/.observablehq/cache` and only reruns a loader when its own file changes. After changing code in `pipeline/`, run `npm run clean` (it clears Framework's loader cache and the memoised frames in `data_cache/frames`, but keeps raw API responses). The GitHub Actions workflow rebuilds monthly and keeps `data_cache/` in the Actions cache.
+FIPE answers **403 Forbidden** to GitHub Actions runners (datacenter IPs), so the data can't be downloaded in CI. Instead, the raw API responses in `data_cache/` (~9 MB) are committed, and the workflow builds **offline** (`CDC_OFFLINE=1`): it reads only from `data_cache/` and fails with a clear message if something is missing. *Settings → Pages → Source* must be set to **GitHub Actions**.
+
+To publish a new month (FIPE releases it in the first days of each month):
+
+```bash
+npm run clean          # clear loader outputs and frames, keep raw responses
+npm run build          # downloads only what's new (~40 min), on your machine
+git add data_cache && git commit -m "Data: FIPE <month>" && git push
+```
+
+Framework caches each loader's output in `src/.observablehq/cache` and only reruns a loader when its own file changes. After changing code in `pipeline/`, run `npm run clean` (it clears Framework's loader cache and the memoised frames in `data_cache/frames`, but keeps raw API responses).
+
+| Variable | Effect |
+|---|---|
+| `CDC_OFFLINE=1` | Never touch the network; serve every request from the cache regardless of age, and fail with a clear message if something is missing |
 
 ## Tests
 

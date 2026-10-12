@@ -21,7 +21,9 @@ def _serie(serie: int, inicio: int) -> pl.DataFrame:
     rows = []
     hoje = date.today().year
     for ano in range(inicio, hoje + 1, 10):
-        params = {"formato": "json", "dataInicial": f"01/01/{ano}", "dataFinal": f"31/12/{min(ano + 9, hoje)}"}
+        # The window end doesn't depend on today's date, so the cache key (and an
+        # offline build) stays valid across a new year.
+        params = {"formato": "json", "dataInicial": f"01/01/{ano}", "dataFinal": f"31/12/{ano + 9}"}
         rows += json.loads(fetch(SGS.format(serie=serie), params=params, suffix=".json", max_age=timedelta(days=1)))
     return pl.DataFrame(
         {

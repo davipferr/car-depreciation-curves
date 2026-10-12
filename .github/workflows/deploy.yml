@@ -1,10 +1,13 @@
 name: Build and deploy
 
+# FIPE answers 403 Forbidden to GitHub Actions runners, so this workflow never
+# downloads data: it builds the site offline from the API responses committed in
+# data_cache/. To refresh the data, run `npm run build` locally, commit
+# data_cache/ and push.
+
 on:
   push:
     branches: [main, master]
-  schedule:
-    - cron: "0 9 8 * *" # monthly, on the 8th (FIPE publishes the new table in the first days of the month)
   workflow_dispatch:
 
 permissions:
@@ -19,7 +22,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 300 # the very first run downloads ~5,000 FIPE prices (~2 h)
+    env:
+      CDC_OFFLINE: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -30,13 +34,6 @@ jobs:
       - run: uv sync --frozen
       - run: uv run pytest -q
       - run: npm ci
-      # Every FIPE price of a past month is immutable and cached forever here, so
-      # after the first run only the new month is downloaded.
-      - uses: actions/cache@v4
-        with:
-          path: data_cache
-          key: data-${{ github.run_id }}
-          restore-keys: data-
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
