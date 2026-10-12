@@ -36,6 +36,15 @@ function painel(dimensao, {campo = "taxa_anual", label = "Depreciação por ano 
 }
 ```
 
+## Premium × generalista
+
+<div class="grid grid-cols-2">
+  <div class="card">${resize((w) => painel("Categoria", {}, w))}</div>
+  <div class="card">${resize((w) => painel("Categoria", {campo: "perda_imediata", label: "Perda ao sair da loja →"}, w))}</div>
+</div>
+
+<p class="muted small">Premium: BMW, Mercedes-Benz, Audi, Volvo, Land Rover, Porsche, Lexus, RAM e MINI. Generalista: as demais marcas.</p>
+
 ## Câmbio
 
 <div class="grid grid-cols-2">

@@ -38,6 +38,22 @@ CHEV, VW, HYU, TOY, FORD, REN = "GM - Chevrolet", "VW - VolksWagen", "Hyundai", 
         (REN, "DUSTER Iconic Plus 1.3 TB 16V Flex Aut.", "Duster"),
         # Same model name, wrong brand.
         (CHEV, "HB20 Comfort 1.0 Flex 12V Mec.", None),
+        # Premium brands: hyphens, abbreviations and vans to leave out.
+        ("Mercedes-Benz", "C-180 CGI Avant. 1.6/1.6 FlexTB 16V Aut.", "Classe C"),
+        ("Mercedes-Benz", "CLA-200 Urban 1.3 TB Aut.", None),
+        ("Mercedes-Benz", "GLA-200 Advance 1.6/1.6 TB 16V Flex Aut.", "GLA"),
+        ("Mercedes-Benz", "Sprinter 417 Furgão 2.2 Diesel", None),
+        ("Volvo", "XC 60 T-8 Plus 2.0 AWD (Híbrido)", "XC60"),
+        ("Land Rover", "Range R.EVOQUE Si4 HSE Dyn. 2.0/Flex Aut", "Evoque"),
+        ("Land Rover", "Range Rover EVOQUE SE 2.0 Diesel Aut.", "Evoque"),
+        ("Land Rover", "Range R.Sport SE 3.0 4x4 TDV6/SDV6 Dies.", None),
+        ("Land Rover", "DISC SP HSE 2.0 Aut.", "Discovery Sport"),
+        ("MINI", "COOPER S 2.0 Turbo 16v 3p Aut.", "Cooper"),
+        ("MINI", "COOPER Countryman S 2.0 Turbo Aut.", None),
+        ("MINI", "COOPER COU. SE SHAD. ED. ALL4 1.5 (Híb.)", None),
+        ("MINI", "COOPER COUPE S 1.6 Aut.", "Cooper"),
+        ("BMW", "320iA 2.0 TB M Sport A.Flex/M.Sport 4p", "320i"),
+        ("Lexus", "NX-350h 4x4 Luxury 2.5 16V Aut. (Híb.)", "NX"),
     ],
 )
 def test_familia_de(marca, versao, familia):
@@ -68,3 +84,24 @@ def test_atributos():
         "Automático", "Manual", "Automatizado", "Automático", "Manual", "Automático", "Automático", "Automático",
     ]
     assert out["propulsao"].to_list() == ["Flex", "Flex", "Flex", "Híbrido", "Elétrico", "Diesel", "Flex", "Flex"]
+
+
+def test_atributos_premium():
+    df = pl.DataFrame(
+        {
+            "versao": [
+                "Macan 2.0 Turbo",  # no transmission in the name: premium -> automatic
+                "COOPER S 2.0 Turbo 16V 3p Mec.",  # explicitly manual
+                "A3 Sed.Perf. Black 2.0 TFSI S-tr. (Hib.)",  # S-tronic, abbreviated hybrid
+                "320iA 2.0 Turbo/ActiveFlex 16V/GP  4p",  # "iA" = automatic
+                "C-180 CGI Exc. 1.6/1.6 Flex TB 16V  Aut.",  # CGI = turbo
+                "Gol 1.0 Flex 12V 5p",  # mainstream, no mention -> manual
+            ],
+            "combustivel_code": [1, 1, 1, 5, 5, 5],
+            "categoria": ["Premium"] * 5 + ["Generalista"],
+        }
+    )
+    out = atributos(df)
+    assert out["cambio"].to_list() == ["Automático", "Manual", "Automático", "Automático", "Automático", "Manual"]
+    assert out["propulsao"].to_list() == ["Gasolina", "Gasolina", "Híbrido", "Flex", "Flex", "Flex"]
+    assert out["turbo"].to_list() == [True, True, True, True, True, False]

@@ -57,7 +57,7 @@ pipeline/            Python package: one module per concern
   http.py            cached GET/POST, retries, adaptive rate limiter
   clean.py           BRL prices, Portuguese month names, name normalisation, the 32000 = zero km quirk
   fipe.py            FIPE client: references, brands, catalogue, prices
-  catalogo.py        71 model families (ordered regexes) + attributes parsed from version names
+  catalogo.py        90 model families, 24 brands (ordered regexes) + attributes parsed from version names
   painel.py          which prices to fetch (sample design) and the cleaned price panel (age, real prices)
   bcb.py             IPCA from SGS; deflator; 12-month IPCA
   curvas.py          the depreciation model (within estimator), retention, loss by age, year-on-year changes

@@ -27,7 +27,7 @@ class Familia:
     nome: str  # display name
     marca: str  # FIPE brand label, exactly as in ConsultarMarcas
     padrao: str  # regex on the normalised version name (anchored at the start)
-    segmento: str  # Hatch, Sedã, SUV, Picape, Minivan
+    segmento: str  # Hatch, Sedã, SUV, Picape, Minivan, Esportivo
 
 
 # Order matters within a brand: specific patterns before generic ones.
@@ -119,9 +119,40 @@ FAMILIAS: list[Familia] = [
     Familia("Tiggo 8", "Caoa Chery", r"TIGGO 8\b", "SUV"),
     # GWM
     Familia("Haval H6", "GWM", r"HAVAL H6\b", "SUV"),
+    # ---- Premium brands. Names are written differently here: "C-180", "GLA-200",
+    # "XC 60" (with a space), "Range R.EVOQUE", "NX-350h", "320iA" (A = automatic).
+    # BMW
+    Familia("320i", "BMW", r"320I", "Sedã"),
+    Familia("X1", "BMW", r"X1\b", "SUV"),
+    # Mercedes-Benz (most of its FIPE catalogue is Sprinter vans, left out)
+    Familia("Classe C", "Mercedes-Benz", r"C \d{2,3}\b", "Sedã"),
+    Familia("GLA", "Mercedes-Benz", r"GLA \d", "SUV"),
+    # Audi
+    Familia("A3", "Audi", r"A3\b", "Sedã"),
+    Familia("Q3", "Audi", r"Q3\b", "SUV"),
+    # Volvo
+    Familia("S60", "Volvo", r"S60\b", "Sedã"),
+    Familia("XC40", "Volvo", r"XC ?40\b", "SUV"),
+    Familia("XC60", "Volvo", r"XC ?60\b", "SUV"),
+    # Land Rover
+    Familia("Evoque", "Land Rover", r"RANGE R(OVER)? ?EVOQUE\b", "SUV"),
+    Familia("Discovery Sport", "Land Rover", r"DISC(OVERY)? SP(ORT)?\b", "SUV"),
+    # Porsche
+    Familia("Macan", "Porsche", r"MACAN\b", "SUV"),
+    Familia("Cayenne", "Porsche", r"CAYENNE\b", "SUV"),
+    Familia("911", "Porsche", r"911\b", "Esportivo"),
+    # Lexus
+    Familia("NX", "Lexus", r"NX \d", "SUV"),
+    # RAM (FIPE has no RAM 1500 since 2014: the 2500 and the mid-size Rampage instead)
+    Familia("RAM 2500", "RAM", r"2500\b", "Picape"),
+    Familia("Rampage", "RAM", r"RAMPAGE\b", "Picape"),
+    # MINI: the Cooper hatch, not the Countryman ("COUNTRY.", "COU."), Cabrio, Clubman or Paceman
+    Familia("Cooper", "MINI", r"COOPER\b(?!.*\b(COU|COUNTRY\w*|CABRIO|PACEMAN|CLUBMAN|ACEMAN)\b)", "Hatch"),
 ]
 
 MARCAS = sorted({f.marca for f in FAMILIAS})
+
+PREMIUM = {"BMW", "Mercedes-Benz", "Audi", "Volvo", "Land Rover", "Porsche", "Lexus", "RAM", "MINI"}
 
 # Short brand labels for the site ("GM - Chevrolet" -> "Chevrolet").
 MARCA_CURTA = {"GM - Chevrolet": "Chevrolet", "VW - VolksWagen": "Volkswagen", "Caoa Chery": "Chery"}
@@ -138,29 +169,40 @@ def familia_de(marca: str, versao: str) -> Familia | None:
 
 # -------------------------------------------------------------------- attributes
 
-_TURBO = r"\b(TURBO\w*|TB|TSI|TFSI|THP|T ?GDI|TGDI|T200|T270|\d\.\dT|\d{3} TSI)\b"
+_TURBO = r"\b(TURBO\w*|TB|TSI|TFSI|THP|T ?GDI|TGDI|T200|T270|CGI|\d\.\dT|\d{3} TSI)\b"
 # Automated manuals: a robot pressing the clutch of a manual box. Cheaper than a
 # real automatic and notorious in the used market, so they get their own class.
 _AUTOMATIZADO = r"\b(DUALOGIC|EASYTRONIC|I ?MOTION|GSR|AMT|ASG|AUTOMATIZADO|EASY R)\b"
-_AUTOMATICO = r"\b(AUT|AUTO|AUTOM|AUTOMATICO|AT|AT6|CVT|X ?TRONIC|DCT|DSG|TIPTRONIC|POWERSHIFT|EAT6|EAT8|STEPTRONIC|MULTIDRIVE)\b"
-_HIBRIDO = r"\b(HYBRID|HIBRIDO|HEV|PHEV|DM I|E HYBRID|MHEV)\b"
+_AUTOMATICO = (
+    r"\b(AUT|AUTO|AUTOM|AUTOMATICO|AT|AT6|CVT|X ?TRONIC|DCT|DSG|TIPTRONIC|POWERSHIFT|EAT6|EAT8|STEPTRONIC"
+    r"|MULTIDRIVE|S ?TRONIC|S TR|PDK|\d{3}IA)\b"
+)
+_MANUAL = r"\b(MEC|MECANICO|MANUAL|MT)\b"
+# Premium brands abbreviate hybrids as "(Híb.)" or "(Hib.)".
+_HIBRIDO = r"\b(HYBRID|HIBRIDO|HIB|HEV|PHEV|DM I|E HYBRID|MHEV)\b"
 _ELETRICO = r"\b(EV|ELETRICO|ELECTRIC|E TECH ELETRICO)\b"
 
 
 def atributos(versoes: pl.DataFrame) -> pl.DataFrame:
     """Add engine, turbo, transmission and powertrain columns parsed from ``versao``.
 
-    Expects ``versao`` and ``combustivel_code``. Transmission defaults to manual:
-    FIPE names almost always flag automatics ("Aut.") but often omit "Mec.".
+    Expects ``versao`` and ``combustivel_code`` (and optionally ``categoria``).
+    When the name doesn't say, transmission defaults to manual for mainstream
+    brands (FIPE almost always flags "Aut." but often omits "Mec.") and to
+    automatic for premium ones, whose names often omit it ("Macan 2.0 Turbo") and
+    which have sold practically no manuals in Brazil since 2014.
     """
     n = norm_expr(pl.col("versao"))
     combustivel = pl.col("combustivel_code").replace_strict(COMBUSTIVEIS, default="Outro", return_dtype=pl.String)
+    premium = pl.col("categoria") == "Premium" if "categoria" in versoes.columns else pl.lit(False)
     return versoes.with_columns(
         n.str.extract(r"\b(\d\.\d)").cast(pl.Float32).alias("motor"),
         n.str.contains(_TURBO).alias("turbo"),
         pl.when(n.str.contains(_AUTOMATIZADO))
         .then(pl.lit("Automatizado"))
         .when(n.str.contains(_AUTOMATICO))
+        .then(pl.lit("Automático"))
+        .when(premium & ~n.str.contains(_MANUAL))
         .then(pl.lit("Automático"))
         .otherwise(pl.lit("Manual"))
         .alias("cambio"),
@@ -185,6 +227,14 @@ def classificar(catalogo: pl.DataFrame, marca_por_code: dict[int, str]) -> pl.Da
         .alias("familia")
     )
     meta = pl.DataFrame(
-        [{"familia": f.nome, "marca": MARCA_CURTA.get(f.marca, f.marca), "segmento": f.segmento} for f in FAMILIAS]
+        [
+            {
+                "familia": f.nome,
+                "marca": MARCA_CURTA.get(f.marca, f.marca),
+                "segmento": f.segmento,
+                "categoria": "Premium" if f.marca in PREMIUM else "Generalista",
+            }
+            for f in FAMILIAS
+        ]
     )
     return atributos(catalogo.join(fam, on=["marca_code", "versao"], how="left").join(meta, on="familia", how="left"))

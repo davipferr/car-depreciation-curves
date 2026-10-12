@@ -109,7 +109,7 @@ def precos(cat: pl.DataFrame, refs: pl.DataFrame) -> pl.DataFrame:
     p = fipe.precos(q).filter(pl.col("preco") > 0)
 
     series = cat.select(
-        "marca_code", "modelo_code", "combustivel_code", "familia", "marca", "segmento", "versao",
+        "marca_code", "modelo_code", "combustivel_code", "familia", "marca", "segmento", "categoria", "versao",
         "motor", "turbo", "cambio", "propulsao", "rank",
     ).unique(SERIE)
     p = p.join(refs, on="ref").join(series, on=SERIE)

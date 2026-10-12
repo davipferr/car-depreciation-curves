@@ -10,7 +10,7 @@ from pipeline.painel import SERIE, VERSOES
 cat = frames.catalogo().filter(pl.col("rank") < VERSOES)
 usados = pl.col("ano_modelo").filter(pl.col("ano_modelo") != ZERO_KM)
 versoes = cat.group_by(SERIE).agg(
-    pl.col("familia", "marca", "segmento", "versao", "motor", "turbo", "cambio", "propulsao", "rank").first(),
+    pl.col("familia", "marca", "segmento", "categoria", "versao", "motor", "turbo", "cambio", "propulsao", "rank").first(),
     usados.min().alias("primeiro_ano"),
     usados.max().alias("ultimo_ano"),
     (pl.col("ano_modelo") == ZERO_KM).any().alias("vendido_zero_km"),

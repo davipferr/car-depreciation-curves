@@ -11,7 +11,7 @@ pooled = curvas.ajuste(atual, [])["b_novo"][0]
 ret = curvas.com_retencao(atual, ["familia"], fit)
 
 info = atual.group_by("familia").agg(
-    pl.col("marca", "segmento").first(),
+    pl.col("marca", "segmento", "categoria").first(),
     pl.col("propulsao").mode().first().alias("propulsao"),
     (pl.col("cambio") == "Automático").mean().alias("parcela_automatico"),
     pl.col("zero_km").any().alias("vendido_zero_km"),

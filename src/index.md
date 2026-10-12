@@ -53,7 +53,7 @@ const saida = geral.find((d) => d.idade === -1);
 <p class="muted">Estimativa do modelo para um carro comprado zero km e vendido 5 anos depois, a preços da FIPE de ${mesAno(qualidade.referencia.mes)}. Passe o mouse para ver os detalhes. A ordem e a metodologia completas estão no <a href="./ranking">ranking</a>.</p>
 
 ```js
-const segmentos = ["Hatch", "Sedã", "SUV", "Picape", "Minivan"];
+const segmentos = ["Hatch", "Sedã", "SUV", "Picape", "Minivan", "Esportivo"];
 const segmento = view(Inputs.radio(["Todos", ...segmentos.filter((s) => familias.some((d) => d.segmento === s))], {label: "Segmento", value: "Todos"}));
 ```
 

@@ -13,7 +13,7 @@ atual = frames.atual()
 atual = curvas.com_retencao(atual, ["familia"], curvas.ajuste(atual, ["familia"]))
 
 cols = [
-    "familia", "marca", "segmento", "modelo_code", "combustivel_code", "ano_modelo", "zero_km",
+    "familia", "marca", "segmento", "categoria", "modelo_code", "combustivel_code", "ano_modelo", "zero_km",
     "mes", "idade", "preco", "preco_real", "retencao", "preco_novo_est", "rank",
 ]
 passado = (

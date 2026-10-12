@@ -25,6 +25,7 @@ atual = curvas.com_retencao(atual, ["familia"], curvas.ajuste(atual, ["familia"]
 )
 
 DIMENSOES = {
+    "categoria": "Categoria",
     "segmento": "Segmento",
     "marca": "Marca",
     "cambio": "Câmbio",
