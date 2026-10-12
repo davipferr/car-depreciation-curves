@@ -9,7 +9,7 @@ Every API call happens **at build time** in Framework data loaders. The browser 
 | Início | Typical annual depreciation, loss when leaving the dealership, 5-year retention of every model, loss by year of age |
 | Curva por modelo | One model: fitted curve vs. every version × model year, comparison with up to 3 others, the age where yearly losses flatten out ("sweet spot"), price table |
 | Ranking | Models ranked by 5-year retention, annual depreciation or dealership loss, plus the method |
-| O que explica a depreciação | The same model pooled by transmission (manual / automatic / *automated manual*), segment, price band, fuel, turbo, brand |
+| O que explica a depreciação | The same model pooled by premium × mainstream brand, transmission (manual / automatic / *automated manual*), segment, price band, fuel, turbo, brand |
 | Ao longo do tempo | The same car followed January to January: the 2021–22 used-car boom, nominal vs. real (IPCA), "follow a car" |
 | Consulta SQL | Free-form SQL over all Parquet files with DuckDB-WASM |
 | Sobre os dados | Sources, sample design, cleaning, name matching, model and limitations |
@@ -25,9 +25,11 @@ npm run dev      # http://127.0.0.1:3000
 npm run build    # static site in dist/
 ```
 
+> **Monthly routine:** the data must be updated on your computer once a month and pushed. See [Monthly data update](#monthly-data-update).
+
 To try it in ~10 minutes, limit the models first: `CDC_FAMILIAS="Onix,HB20,Gol,Corolla" npm run dev` (bash). Run `npm run clean` before switching back to the full set.
 
-**The full first build takes about 2 hours.** It makes ~5,300 price requests, and FIPE answers *429 Too Many Requests* above roughly 45 per minute. Every response is cached in `data_cache/` (git-ignored). A price for a past month never changes, so it is cached forever: an interrupted build resumes where it stopped, and later builds only fetch the new month (~1,800 requests).
+**A build from an empty cache takes about 2.5 hours.** It makes ~7,800 requests, and FIPE answers *429 Too Many Requests* above roughly 45 per minute. Every response is cached in `data_cache/` (committed to git, see [Monthly data update](#monthly-data-update)). An interrupted build resumes where it stopped.
 
 Knobs (environment variables):
 
@@ -95,23 +97,55 @@ It is estimated with the *within* estimator (demean per version, then a 2×2 lea
 - **Undocumented rate limit.** The limiter is adaptive (AIMD-style).
 - **Age.** Next year's model is sold from mid-year, which would give a negative age, so age is floored at 0.
 
-## Refreshing data and deploying
+## Monthly data update
 
-FIPE answers **403 Forbidden** to GitHub Actions runners (datacenter IPs), so the data can't be downloaded in CI. Instead, the raw API responses in `data_cache/` (~9 MB) are committed, and the workflow builds **offline** (`CDC_OFFLINE=1`): it reads only from `data_cache/` and fails with a clear message if something is missing. *Settings → Pages → Source* must be set to **GitHub Actions**.
+**Fetch the data once a month, on your own computer, before pushing.** FIPE publishes one new price table per month, in its first days; until the next one comes out nothing changes. A good habit is updating around the **8th of each month**.
 
-To publish a new month (FIPE releases it in the first days of each month):
+### Why it has to be done locally
+
+FIPE answers **403 Forbidden** to GitHub Actions runners (datacenter IPs), so GitHub can't download anything. Instead, the downloaded API responses in `data_cache/` are committed, and the workflow builds the site **offline** (`CDC_OFFLINE=1`) from them. If a push contains no new data, the site is rebuilt with the old data.
+
+### Commands
+
+Run in the project folder, with your computer connected (it takes **~70 minutes**, ~85 in January):
 
 ```bash
-npm run clean          # clear loader outputs and frames, keep raw responses
-npm run build          # downloads only what's new (~40 min), on your machine
-git add data_cache && git commit -m "Data: FIPE <month>" && git push
+npm run clean    # 1. delete derived files (loader outputs, data_cache/frames); downloaded data is kept
+npm run build    # 2. download the new month from FIPE and build the site
+uv run pytest    # 3. run the tests
+git add -A       # 4. stage the new files in data_cache/
+git commit -m "Data: FIPE <month>/<year>"
+git push         # 5. GitHub builds the site offline and publishes it
 ```
 
-Framework caches each loader's output in `src/.observablehq/cache` and only reruns a loader when its own file changes. After changing code in `pipeline/`, run `npm run clean` (it clears Framework's loader cache and the memoised frames in `data_cache/frames`, but keeps raw API responses).
+Optionally, check the site before pushing with `npm run dev` (http://127.0.0.1:3000). The *Sobre os dados* page shows which FIPE month is in use.
+
+If the build is interrupted (computer off, connection lost), just run `npm run build` again: everything already downloaded is cached, so it resumes where it stopped.
+
+### What gets downloaded, and why only that
+
+Each kind of data is cached for as long as it can't change, so a monthly update never re-downloads the past:
+
+| Data | Cached for | Why |
+|---|---|---|
+| Prices | Forever | A price from a past month never changes |
+| Model / version lists | Until a new month exists | Each list belongs to one month's table |
+| List of available months | 1 day | How the pipeline notices a new month |
+| IPCA (inflation) | 1 day | A single request; the Banco Central adds one month at a time |
+| `data_cache/frames` (derived tables) | 12 hours | Rebuilt in seconds from cached files, no downloads |
+
+A new month costs ~980 requests for the model lists (24 brands × each model year and fuel since 2014) and ~2,310 for the new prices; **January** adds ~710 for the yearly history of each model. At ~47 requests per minute that's ~70 minutes (~85 in January).
+
+**Everything is downloaded again (~2.5 h)** only if you delete `data_cache/` or change `CDC_ANO_MIN`/`CDC_VERSOES`; adding models to `pipeline/catalogo.py` downloads only their prices.
+
+### Other notes
+
+- *Settings → Pages → Source* must be set to **GitHub Actions** in the repository.
+- Framework caches each loader's output in `src/.observablehq/cache` and only reruns a loader when its own file changes. After changing code in `pipeline/`, run `npm run clean`.
 
 | Variable | Effect |
 |---|---|
-| `CDC_OFFLINE=1` | Never touch the network; serve every request from the cache regardless of age, and fail with a clear message if something is missing |
+| `CDC_OFFLINE=1` | Never touch the network; serve every request from the cache regardless of age, and fail with a clear message if something is missing (set in the GitHub workflow) |
 
 ## Tests
 
