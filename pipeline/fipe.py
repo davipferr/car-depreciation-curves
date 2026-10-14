@@ -27,6 +27,7 @@ import polars as pl
 
 from .clean import parse_brl, parse_mes, split_ano_code
 from .http import RateLimiter, cached, fetch, log
+from .schema import require_keys
 
 API = "https://veiculos.fipe.org.br/api/veiculos"
 HEADERS = {"Referer": "https://veiculos.fipe.org.br/", "Accept": "application/json"}
@@ -52,7 +53,7 @@ def _is_miss(payload: object) -> bool:
 
 def referencias() -> pl.DataFrame:
     """Every published reference table: ``ref`` (FIPE's code, e.g. 338) and ``mes`` (first day of the month)."""
-    rows = _post("ConsultarTabelaDeReferencia", {}, max_age=timedelta(days=1))
+    rows = require_keys(_post("ConsultarTabelaDeReferencia", {}, max_age=timedelta(days=1)), ["Codigo", "Mes"], "FIPE ConsultarTabelaDeReferencia")
     return pl.DataFrame(
         [{"ref": int(r["Codigo"]), "mes": parse_mes(r["Mes"])} for r in rows],
         schema={"ref": pl.Int32, "mes": pl.Date},
@@ -70,6 +71,7 @@ def ultima_referencia() -> int:
 
 def marcas(ref: int) -> pl.DataFrame:
     rows = _post("ConsultarMarcas", {"codigoTabelaReferencia": ref, "codigoTipoVeiculo": CARROS}, max_age=None)
+    require_keys(rows, ["Value", "Label"], f"FIPE ConsultarMarcas (ref {ref})")
     return pl.DataFrame(
         [{"marca_code": int(r["Value"]), "marca": r["Label"].strip()} for r in rows],
         schema={"marca_code": pl.Int32, "marca": pl.String},
@@ -82,7 +84,8 @@ def _anos_da_marca(ref: int, marca_code: int) -> list[str]:
         {"codigoTabelaReferencia": ref, "codigoTipoVeiculo": CARROS, "codigoMarca": marca_code},
         max_age=None,
     )
-    return [a["Value"] for a in payload["Anos"]]
+    anos = require_keys(payload, ["Anos"], f"FIPE ConsultarModelos (ref {ref}, marca {marca_code})")["Anos"]
+    return [a["Value"] for a in require_keys(anos, ["Value"], f"FIPE ConsultarModelos (ref {ref}, marca {marca_code}) Anos")]
 
 
 def catalogo_marca(ref: int, marca_code: int, ano_min: int) -> pl.DataFrame:
@@ -109,6 +112,7 @@ def catalogo_marca(ref: int, marca_code: int, ano_min: int) -> pl.DataFrame:
         )
         if _is_miss(rows):
             continue
+        require_keys(rows, ["Value", "Label"], f"FIPE ConsultarModelosAtravesDoAno (ref {ref}, marca {marca_code}, ano {code})", min_rows=0)
         out.extend(
             {"modelo_code": int(r["Value"]), "versao": r["Label"], "ano_modelo": ano, "combustivel_code": comb} for r in rows
         )
@@ -141,6 +145,7 @@ def preco(ref: int, marca_code: int, modelo_code: int, ano_modelo: int, combusti
     )
     if _is_miss(payload):
         return None
+    require_keys(payload, ["Valor", "CodigoFipe"], f"FIPE ConsultarValorComTodosParametros (ref {ref}, modelo {modelo_code}, ano {ano_modelo})")
     return {"preco": parse_brl(payload["Valor"]), "codigo_fipe": payload["CodigoFipe"]}
 
 

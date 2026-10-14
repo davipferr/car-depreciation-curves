@@ -21,39 +21,54 @@ const metricas = new Map([
 ```
 
 ```js
-const metrica = view(Inputs.select(metricas, {label: "Ordenar por"}));
+const metricaNome = view(Inputs.select([...metricas.keys()], {label: "Ordenar por"}));
 const segmento = view(Inputs.select(["Todos", ...new Set(familias.map((d) => d.segmento))], {label: "Segmento"}));
 ```
 
 ```js
-const m = metrica;
+const m = metricas.get(metricaNome);
 const lista = d3.sort(
   familias.filter((d) => (segmento === "Todos" || d.segmento === segmento) && d[m.campo] != null),
   (d) => (m.desc ? -d[m.campo] : d[m.campo])
 );
-display(Plot.plot({
-  width,
-  height: 18 * lista.length + 40,
-  marginLeft: 110,
-  marginRight: 50,
-  x: {label: m.label, tickFormat: "%", grid: true, nice: true},
-  y: {domain: lista.map((d) => d.familia), label: null},
-  marks: [
-    Plot.ruleY(lista, {y: "familia", x1: 0, x2: m.campo, stroke: cores.muted}),
-    Plot.dot(lista, {
-      y: "familia",
-      x: m.campo,
-      r: 5,
-      fill: cores.accent,
-      stroke: "var(--theme-background)",
-      strokeWidth: 2,
-      channels: {Marca: "marca", Segmento: "segmento", "Versões": "n_series"},
-      tip: {format: {x: m.fmt}}
-    }),
-    Plot.text(lista, {y: "familia", x: m.campo, text: (d) => m.fmt(d[m.campo]), dx: 10, textAnchor: "start", fill: "var(--theme-foreground-muted)", fontSize: 10})
-  ]
-}));
+const mediana = d3.median(lista, (d) => d[m.campo]);
+const CATEGORIAS = ["Generalista", "Premium"];
 ```
+
+<div class="card">
+  <h2>${metricaNome}${segmento === "Todos" ? "" : ` — ${segmento}`}</h2>
+  <h3>${lista.length} modelos, na cor da categoria da marca; a haste mostra a distância até a mediana (tracejado). Clique num modelo para ver a curva dele</h3>
+  ${resize((width) => Plot.plot({
+    width,
+    height: 22 * lista.length + 60,
+    marginLeft: 100,
+    marginRight: 50,
+    marginTop: 40,
+    x: {label: m.label, tickFormat: "%", grid: true, nice: true, axis: "top", ticks: width < 500 ? 4 : 8},
+    insetLeft: 36,
+    y: {domain: lista.map((d) => d.familia), label: null, tickSize: 0},
+    color: {domain: CATEGORIAS, range: [cores.accent, cores.categorical[6]], legend: true},
+    marks: [
+      Plot.ruleY(lista, {y: "familia", x1: mediana, x2: m.campo, stroke: "currentColor", strokeOpacity: 0.25, strokeWidth: 2}),
+      Plot.ruleX([mediana], {stroke: "currentColor", strokeOpacity: 0.7, strokeDasharray: "4,3"}),
+      Plot.text([mediana], {x: (d) => d, frameAnchor: "bottom", dy: 14, textAnchor: "middle", text: (d) => `mediana: ${m.fmt(d)}`, fill: "currentColor", fontSize: 11}),
+      Plot.dot(lista, {
+        y: "familia",
+        x: m.campo,
+        r: 5,
+        fill: "categoria",
+        stroke: "var(--theme-background-alt)",
+        strokeWidth: 2,
+        href: (d) => `./curvas#${encodeURIComponent(d.familia)}`,
+        channels: {Marca: "marca", Segmento: "segmento", "Versões": "n_series"},
+        tip: {format: {x: m.fmt, fill: false}}
+      }),
+      ...[["start", 10, (d) => d[m.campo] >= mediana], ["end", -10, (d) => d[m.campo] < mediana]].map(([textAnchor, dx, lado]) =>
+        Plot.text(lista.filter(lado), {y: "familia", x: m.campo, text: (d) => m.fmt(d[m.campo]), dx, textAnchor, fill: "currentColor", fontSize: 11})
+      )
+    ]
+  }))}
+</div>
 
 <p class="muted small">Modelos fora de linha não têm preço de zero km, então não aparecem no ranking de perda ao sair da loja. Na retenção em 5 anos, eles usam a perda média de todos os modelos.</p>
 
@@ -85,8 +100,3 @@ Para cada modelo, o preço de cada versão em cada ano-modelo (na tabela FIPE ma
 - **Retenção em t anos** = e<sup>b·t − c</sup>: quanto sobra do preço de novo depois de t anos.
 
 O modelo supõe uma perda percentual constante por ano. Em <a href="./curvas">Curva por modelo</a> você vê a perda ano a ano, sem essa suposição.
-
-<style>
-.formula { font-family: var(--monospace); font-size: 1rem; padding: 0.5rem 0; }
-.small { font-size: 0.85rem; }
-</style>

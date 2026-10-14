@@ -7,6 +7,7 @@ title: Curva por modelo
 ```js
 import {anos, brl, brlCompact, mesAno, num, pct, pctInt, rows} from "./components/format.js";
 import {palette} from "./components/palette.js";
+import {meter} from "./components/charts.js";
 
 const familias = rows(await FileAttachment("data/familias.parquet").parquet());
 const precos = rows(await FileAttachment("data/precos.parquet").parquet());
@@ -23,15 +24,26 @@ const versaoPor = new Map(versoes.map((v) => [`${v.modelo_code}-${v.combustivel_
 ```
 
 ```js
-const familia = view(Inputs.select(nomes, {label: "Modelo", value: nomes.includes("Onix") ? "Onix" : nomes[0]}));
+// Links from other pages open a model directly: /curvas#Onix
+const doHash = decodeURIComponent(location.hash.slice(1));
+const familia = view(Inputs.select(nomes, {label: "Modelo", value: nomes.includes(doHash) ? doHash : nomes.includes("Onix") ? "Onix" : nomes[0]}));
 ```
 
 ```js
+// Keep the URL shareable.
+history.replaceState(null, "", `#${encodeURIComponent(familia)}`);
 const f = familias.find((d) => d.familia === familia);
+// Share of the other models this one beats (loses value more slowly / keeps more).
+const melhorQue = (campo, menorMelhor) => {
+  const outros = familias.filter((d) => d.familia !== familia && d[campo] != null);
+  return f[campo] == null ? null : outros.filter((d) => (menorMelhor ? d[campo] > f[campo] : d[campo] < f[campo])).length / outros.length;
+};
+const pTaxa = melhorQue("taxa_anual", true);
+const pRet = melhorQue("retencao_5", false);
 const pontos = atual
   .filter((d) => d.familia === familia)
   .map((d) => ({...d, versao: versaoPor.get(`${d.modelo_code}-${d.combustivel_code}`)?.versao}));
-const curva = (b, c) => d3.range(0, 12.01, 0.25).map((t) => ({idade: t, retencao: Math.exp(b * t - c)}));
+const curva = (b, c) => d3.range(0, 20.01, 0.25).map((t) => ({idade: t, retencao: Math.exp(b * t - c)}));
 const idadeMax = Math.max(6, d3.max(pontos, (d) => d.idade) ?? 0);
 ```
 
@@ -41,7 +53,8 @@ const idadeMax = Math.max(6, d3.max(pontos, (d) => d.idade) ?? 0);
   <div class="card">
     <h2>Depreciação anual</h2>
     <span class="big">${pct(f.taxa_anual)}</span>
-    <p class="muted">perda por ano de idade, carro usado</p>
+    ${meter(pTaxa, cores, `${f.familia} perde valor mais devagar que ${pctInt(pTaxa)} dos modelos`)}
+    <p class="muted">por ano de idade; deprecia menos que ${pctInt(pTaxa)} dos ${familias.length - 1} outros modelos</p>
   </div>
   <div class="card">
     <h2>Ao sair da loja</h2>
@@ -51,7 +64,8 @@ const idadeMax = Math.max(6, d3.max(pontos, (d) => d.idade) ?? 0);
   <div class="card">
     <h2>Retenção em 3 / 5 anos</h2>
     <span class="big">${pctInt(f.retencao_3)} / ${pctInt(f.retencao_5)}</span>
-    <p class="muted">do preço de novo, segundo o modelo</p>
+    ${meter(f.retencao_5, cores, `${pctInt(f.retencao_5)} do preço de novo após 5 anos`)}
+    <p class="muted">do preço de novo; em 5 anos, retém mais que ${pctInt(pRet)} dos modelos</p>
   </div>
   <div class="card">
     <h2>Preço de novo</h2>
@@ -62,7 +76,7 @@ const idadeMax = Math.max(6, d3.max(pontos, (d) => d.idade) ?? 0);
 
 ## Quanto vale, por idade
 
-Cada ponto é uma versão e um ano-modelo, dividido pelo preço de novo estimado da mesma versão. A linha é a curva ajustada. Compare com até três outros modelos:
+Cada ponto é uma versão e um ano-modelo, dividido pelo preço de novo estimado da mesma versão. A linha é a curva ajustada; a tracejada, a curva do modelo mediano. Compare com até três outros modelos:
 
 ```js
 const comparar = view(Inputs.select(nomes.filter((n) => n !== familia), {label: "Comparar com", multiple: 3, value: []}));
@@ -74,26 +88,36 @@ const linhas = [familia, ...comparar.slice(0, 3)].flatMap((nome, i) => {
   return curva(g.b_idade, g.b_novo_efetivo).filter((d) => d.idade <= idadeMax).map((d) => ({...d, familia: nome}));
 });
 const ordem = [familia, ...comparar.slice(0, 3)];
-display(Plot.plot({
-  width,
-  height: 400,
-  x: {label: "Idade (anos) →", domain: [0, idadeMax], grid: true},
-  y: {label: "↑ Fração do preço de novo", tickFormat: "%", domain: [0, 1.05], grid: true},
-  color: {domain: ordem, range: [cores.accent, ...cores.categorical.slice(1, 4)], legend: ordem.length > 1},
-  marks: [
-    Plot.dot(pontos, {
-      x: "idade",
-      y: "retencao",
-      r: 4,
-      fill: cores.accent,
-      fillOpacity: 0.35,
-      channels: {Versão: "versao", "Ano-modelo": (d) => (d.zero_km ? "zero km" : d.ano_modelo), Preço: (d) => brl(d.preco)},
-      tip: {format: {x: (x) => anos(x), y: (y) => pctInt(y)}}
-    }),
-    Plot.line(linhas, {x: "idade", y: "retencao", stroke: "familia", strokeWidth: 2, tip: {format: {x: (x) => anos(x), y: (y) => pctInt(y)}}, channels: {Modelo: "familia"}})
-  ]
-}));
+const coresLinha = [cores.accent, ...cores.categorical.slice(1, 4)];
+const tipica = curva(d3.median(familias, (d) => d.b_idade), d3.median(familias, (d) => d.b_novo_efetivo)).filter((d) => d.idade <= idadeMax);
 ```
+
+<div class="card">
+  <h2>${ordem.join(" × ")}: fração do preço de novo por idade</h2>
+  <h3>FIPE de ${mesAno(mesAtual)}; o tracejado é a curva do modelo mediano. Passe o mouse sobre um ponto para ver a versão e o preço</h3>
+  ${resize((width) => Plot.plot({
+    width,
+    height: 400,
+    marginRight: width < 520 ? 16 : 100,
+    x: {label: "Idade (anos) →", domain: [0, idadeMax], grid: true},
+    y: {label: "↑ Fração do preço de novo", tickFormat: "%", domain: [0, 1.05], grid: true},
+    color: {domain: ordem, range: coresLinha, legend: width < 520 && ordem.length > 1},
+    marks: [
+      Plot.line(tipica, {x: "idade", y: "retencao", stroke: "currentColor", strokeOpacity: 0.5, strokeDasharray: "4,3"}),
+      Plot.dot(pontos, {
+        x: "idade",
+        y: "retencao",
+        r: 4,
+        fill: cores.accent,
+        fillOpacity: 0.35,
+        channels: {Versão: "versao", "Ano-modelo": (d) => (d.zero_km ? "zero km" : d.ano_modelo), Preço: (d) => brl(d.preco)},
+        tip: {format: {x: (x) => anos(x), y: (y) => pctInt(y)}}
+      }),
+      Plot.line(linhas, {x: "idade", y: "retencao", stroke: "familia", strokeWidth: 2.5}),
+      width < 520 ? null : Plot.text(linhas, Plot.selectLast({x: "idade", y: "retencao", z: "familia", text: "familia", fill: "familia", dx: 6, textAnchor: "start", fontSize: 11, fontWeight: 600}))
+    ]
+  }))}
+</div>
 
 ## A idade em que a perda se estabiliza
 
@@ -102,28 +126,33 @@ Perda mediana em cada ano de vida, comparando anos-modelo vizinhos da mesma vers
 ```js
 const pf = perdas.filter((d) => d.nivel === "familia" && d.grupo === familia && d.idade <= 12);
 const seg = new Map(perdas.filter((d) => d.nivel === "segmento" && d.grupo === f.segmento).map((d) => [d.idade, d.perda_mediana]));
-display(pf.length ? Plot.plot({
+const perdaPlot = (width) => Plot.plot({
   width,
   height: 260,
-  x: {label: "Idade (anos)", type: "band", tickFormat: (d) => (d === -1 ? "0 km" : `${d}→${d + 1}`)},
-  y: {label: "↑ Perda no ano", tickFormat: "%", grid: true},
+  marginTop: 24,
+  x: {label: "Idade (anos)", type: "band", padding: 0.15, tickFormat: (d) => (d === -1 ? "0 km" : width < 520 ? String(d) : `${d}→${d + 1}`)},
+  y: {axis: null},
   marks: [
     Plot.barY(pf, {
       x: "idade",
       y: "perda_mediana",
       fill: (d) => (d.idade === -1 ? cores.categorical[1] : cores.accent),
-      inset: 1,
-      rx: 2,
+      ry1: 3,
       channels: {Pares: "n_pares", [`Mediana ${f.segmento}`]: (d) => pct(seg.get(d.idade))},
       tip: {format: {y: (y) => pct(y), fill: false}}
     }),
-    Plot.tickY(pf, {x: "idade", y: (d) => seg.get(d.idade), stroke: "var(--theme-foreground-muted)", strokeWidth: 2, strokeDasharray: "3,2"}),
-    Plot.ruleY([0])
+    Plot.tickY(pf, {x: "idade", y: (d) => seg.get(d.idade), stroke: "currentColor", strokeOpacity: 0.8, strokeWidth: 2, strokeDasharray: "3,2"}),
+    Plot.text(pf, {x: "idade", y: (d) => Math.max(d.perda_mediana, seg.get(d.idade) ?? 0), text: (d) => pct(d.perda_mediana), dy: -8, lineAnchor: "bottom", fill: "currentColor", fontSize: width < 520 ? 9 : 11}),
+    Plot.ruleY([0], {strokeOpacity: 0.4})
   ]
-}) : html`<p class="muted">Poucos anos-modelo para calcular.</p>`);
+});
 ```
 
-<p class="muted small">Barras: ${familia}. Tracejado: mediana do segmento ${f.segmento}. Barras de idades com poucos pares (veja <em>Pares</em> na dica) são ruidosas.</p>
+<div class="card">
+  <h2>Perda mediana de ${familia} em cada ano de vida</h2>
+  <h3>Em laranja, a saída da loja; o tracejado é a mediana do segmento ${f.segmento}. Idades com poucos pares (veja <em>Pares</em> na dica) são ruidosas</h3>
+  ${pf.length ? resize(perdaPlot) : html`<p class="muted">Poucos anos-modelo para calcular.</p>`}
+</div>
 
 ## Preços na tabela atual
 

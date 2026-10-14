@@ -5,6 +5,7 @@
   "scripts": {
     "clean": "rimraf src/.observablehq/cache data_cache/frames",
     "build": "observable build",
+    "postbuild": "uv run --quiet python -m pipeline.manifest publish",
     "dev": "observable preview",
     "deploy": "observable deploy",
     "observable": "observable"

@@ -1,0 +1,246 @@
+/* Site theme: Framework's default layout + near-midnight, dark-only (it sets
+   color-scheme: dark, so Framework's `dark` flag — and every palette(dark) —
+   is always true), with our own typography, accent and components on top. */
+@import url("observablehq:default.css");
+@import url("observablehq:theme-near-midnight.css");
+@import url("observablehq:theme-alt.css");
+@import url("observablehq:theme-wide.css");
+
+:root {
+  --sans-serif: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --serif: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+  --font-big: 600 34px/1.05 var(--sans-serif);
+  /* Accent = slot 1 of the chart palette (components/palette.js), so links,
+     focus rings and the default series share one blue. */
+  --theme-foreground-focus: #3987e5;
+  --accent-soft: color-mix(in srgb, var(--theme-foreground-focus) 12%, var(--theme-background));
+}
+
+/* Prose in the sans; headings in the serif. Figures (KPIs, charts) stay sans. */
+body {
+  font: 16px/1.6 var(--sans-serif);
+}
+h1,
+h2:not(.card h2),
+h3:not(.card h3) {
+  font-family: var(--serif);
+  letter-spacing: -0.01em;
+}
+#observablehq-main > h1:first-child,
+#observablehq-main h1 {
+  font-size: clamp(30px, 5vw, 42px);
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+#observablehq-main > h2 {
+  margin-top: 2.5rem;
+  font-size: 24px;
+}
+p,
+li {
+  text-wrap: pretty;
+}
+
+/* Numbers that line up in columns use tabular figures; big standalone values
+   keep proportional figures (they read tighter at display sizes). */
+table,
+svg[class^="plot"] text,
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cards: a touch more air and a hairline, no heavy chrome. */
+.card {
+  border-radius: 10px;
+  padding: 1.1rem 1.2rem;
+}
+.card h2 {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.card .big {
+  display: block;
+  margin: 0.15rem 0 0.1rem;
+  /* Values wear the text colour; the accent belongs to the marks. */
+  color: var(--theme-foreground);
+}
+.muted {
+  color: var(--theme-foreground-muted);
+}
+.small {
+  font-size: 0.85rem;
+}
+.lede {
+  font-size: 1.15rem;
+  max-width: 52rem;
+  color: var(--theme-foreground-muted);
+}
+
+/* The regression written out on "Ranking" and "Sobre os dados". */
+.formula {
+  font-family: var(--monospace);
+  font-size: 1rem;
+  max-width: 40rem;
+  padding: 0.6rem 1rem;
+  border-left: 3px solid var(--theme-foreground-focus);
+  border-radius: 0 6px 6px 0;
+  background: var(--accent-soft);
+}
+
+/* Cards that open another page: they lift on hover, and an arrow on the title
+   says "this card opens a page" (it slides on hover). */
+.card-link {
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 150ms, transform 150ms, box-shadow 150ms;
+}
+.card-link:hover {
+  border-color: var(--theme-foreground-focus);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+.card-link:focus-visible {
+  outline: 2px solid var(--theme-foreground-focus);
+  outline-offset: 2px;
+}
+.card-link h2::after {
+  content: "→";
+  display: inline-block;
+  margin-left: 0.35em;
+  color: var(--theme-foreground-focus);
+  transition: transform 150ms;
+}
+.card-link:hover h2::after {
+  transform: translateX(3px);
+}
+.card-link svg {
+  display: block;
+  margin-top: 0.75rem;
+  /* Axis text of mini-charts in the muted grey, not the link colour. */
+  color: var(--theme-foreground-muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-link,
+  .card-link h2::after {
+    transition: none;
+  }
+  .card-link:hover {
+    transform: none;
+  }
+}
+
+/* Framework's grid gives every row the tallest card's height; once the columns
+   collapse on phones that leaves big empty gaps, so let rows size to content. */
+@media (max-width: 640px) {
+  .grid {
+    grid-auto-rows: auto;
+  }
+}
+
+/* Sidebar title: Framework pins the close (toggle) button over the right edge
+   of the title link, and our title is long enough to run underneath it. Keep a
+   gutter for the button and let the title wrap onto two lines instead. */
+#observablehq-sidebar > ol:first-child > li > a {
+  height: auto;
+  min-height: calc(var(--observablehq-header-height) - 1rem);
+  padding-right: 2.75rem;
+  line-height: 1.25;
+}
+
+/* Sidebar open/close buttons: Framework draws them in the faint muted grey; a
+   lighter grey makes them easier to spot. */
+#observablehq-sidebar-toggle,
+#observablehq-sidebar-close {
+  color: var(--theme-foreground-alt);
+}
+
+/* Markdown tables (e.g. sources on "Sobre os dados") hold long API paths in
+   <code>; let them break so the table fits on phones instead of scrolling the page. */
+#observablehq-main td,
+#observablehq-main th {
+  overflow-wrap: anywhere;
+}
+
+/* Framework's chrome text in Portuguese: pager labels and Inputs.table's
+   empty state (both have no option to change them). */
+#observablehq-footer nav a[rel="prev"]::before { content: "Página anterior"; }
+#observablehq-footer nav a[rel="next"]::before { content: "Próxima página"; }
+form table td[rowspan][style*="italic"] { font-size: 0; }
+form table td[rowspan][style*="italic"]::after { content: "Nenhum resultado."; font-size: 12px; }
+
+/* Callout labels in Portuguese (Framework ships them in English). */
+.note:not([label])::before { content: "Nota"; }
+.tip:not([label])::before { content: "Dica"; }
+.warning:not([label])::before { content: "Atenção"; }
+.caution:not([label])::before { content: "Cuidado"; }
+
+/* Headline card on the home page: the main finding as a sentence, its chart on
+   the left and a breakdown on the right (stacked on narrow screens). */
+.hero {
+  padding: 1.5rem;
+}
+.hero .hero-title {
+  font: 600 clamp(20px, 2.6vw, 28px)/1.25 var(--serif);
+  max-width: 46rem;
+  margin-bottom: 1rem;
+  color: var(--theme-foreground);
+}
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: center;
+}
+.hero-grid h3 {
+  font-weight: 600;
+  color: var(--theme-foreground);
+}
+@media (max-width: 800px) {
+  .hero-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Small legend row (swatch + label) used next to compact charts. */
+.legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  font: 12px var(--sans-serif);
+  color: var(--theme-foreground-muted);
+}
+.legend-row span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.legend-row i {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+/* Swatch for a line series (dashed when the line is dashed). */
+.legend-row i.line {
+  width: 16px;
+  height: 0;
+  border-radius: 0;
+  border-top: 2px solid;
+  background: none !important;
+}
+.legend-row i.line.dashed {
+  border-top-style: dashed;
+}
+
+/* Meter: fill = accent, track = a lighter step of the same ramp. */
+.meter {
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 0.5rem 0 0.35rem;
+}
+.meter > div {
+  height: 100%;
+  border-radius: 4px;
+}

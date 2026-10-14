@@ -8,6 +8,7 @@ stopped instead of starting over.
 
 from __future__ import annotations
 
+import atexit
 import hashlib
 import os
 import sys
@@ -87,6 +88,15 @@ def cached(url: str, *, params: dict | None = None, data: dict | None = None, su
     return _cache_path(url, params, data, suffix).exists()
 
 
+def cached_path(url: str, *, params: dict | None = None, data: dict | None = None, suffix: str = ".bin") -> Path | None:
+    """Where ``fetch`` stored this request, or None if it was never downloaded.
+
+    ``suffix`` must match the one passed to ``fetch``. Ignores ``max_age``.
+    """
+    path = _cache_path(url, params, data, suffix)
+    return path if path.exists() else None
+
+
 # One client for the whole process: FIPE answers thousands of tiny requests, and
 # re-using the TLS connection roughly halves the time per request.
 _client: httpx.Client | None = None
@@ -96,6 +106,7 @@ def _get_client(timeout: float) -> httpx.Client:
     global _client
     if _client is None:
         _client = httpx.Client(follow_redirects=True, timeout=timeout)
+        atexit.register(_client.close)
     return _client
 
 

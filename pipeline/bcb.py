@@ -12,19 +12,28 @@ from datetime import date, datetime, timedelta
 import polars as pl
 
 from .http import fetch, log
+from .schema import require_keys
 
 SGS = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.{serie}/dados"
 IPCA_MENSAL = 433
 
 
+def janelas(serie: int, inicio: int) -> list[tuple[str, dict]]:
+    """URL and query parameters of each ten-year request for ``serie`` since ``inicio``."""
+    # The window end doesn't depend on today's date, so the cache key (and an
+    # offline build) stays valid across a new year.
+    return [
+        (SGS.format(serie=serie), {"formato": "json", "dataInicial": f"01/01/{ano}", "dataFinal": f"31/12/{ano + 9}"})
+        for ano in range(inicio, date.today().year + 1, 10)
+    ]
+
+
 def _serie(serie: int, inicio: int) -> pl.DataFrame:
     rows = []
-    hoje = date.today().year
-    for ano in range(inicio, hoje + 1, 10):
-        # The window end doesn't depend on today's date, so the cache key (and an
-        # offline build) stays valid across a new year.
-        params = {"formato": "json", "dataInicial": f"01/01/{ano}", "dataFinal": f"31/12/{ano + 9}"}
-        rows += json.loads(fetch(SGS.format(serie=serie), params=params, suffix=".json", max_age=timedelta(days=1)))
+    for url, params in janelas(serie, inicio):
+        janela = json.loads(fetch(url, params=params, suffix=".json", max_age=timedelta(days=1)))
+        rows += require_keys(janela, ["data", "valor"], f"BCB SGS {serie} ({params['dataInicial']}–{params['dataFinal']})", min_rows=0)
+    require_keys(rows, ["data", "valor"], f"BCB SGS {serie}")
     return pl.DataFrame(
         {
             "mes": [datetime.strptime(r["data"], "%d/%m/%Y").date() for r in rows],

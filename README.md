@@ -56,19 +56,23 @@ The JSON endpoints behind FIPE's own consultation page (`https://veiculos.fipe.o
 
 ```
 pipeline/            Python package: one module per concern
-  http.py            cached GET/POST, retries, adaptive rate limiter
+  http.py            cached GET/POST (one shared connection), retries, adaptive rate limiter
+  schema.py          fails fast with a clear message when FIPE or the BCB rename/drop a JSON field
   clean.py           BRL prices, Portuguese month names, name normalisation, the 32000 = zero km quirk
   fipe.py            FIPE client: references, brands, catalogue, prices
   catalogo.py        90 model families, 24 brands (ordered regexes) + attributes parsed from version names
   painel.py          which prices to fetch (sample design) and the cleaned price panel (age, real prices)
   bcb.py             IPCA from SGS; deflator; 12-month IPCA
   curvas.py          the depreciation model (within estimator), retention, loss by age, year-on-year changes
-  frames.py          catalogue and panel memoised as Parquet, shared across loaders
+  frames.py          catalogue and panel memoised as Parquet, keyed by a hash of the pipeline code
   io.py              stdout writers; casts int64 -> int32 so JS doesn't get BigInt
+  manifest.py        data manifest (FIPE month, sources, row counts) and build-to-build comparison
 src/data/*.py        Framework data loaders (thin; run via `uv run`, see observablehq.config.js)
-src/components/      formatting (pt-BR), palette
+src/components/      formatting (pt-BR), palette, shared chart helpers (charts.js)
+src/style.css        theme (dark-only), fonts, Portuguese labels for Framework's chrome
 src/*.md             pages
-tests/               offline tests: cleaning, family matching, attribute parsing, the model on synthetic data
+tests/               offline tests: cleaning, family matching, attribute parsing, the model on synthetic data,
+                     HTTP cache/retries, schema checks, frame memoisation, manifest
 ```
 
 ## The model
@@ -141,11 +145,24 @@ A new month costs ~980 requests for the model lists (24 brands × each model yea
 ### Other notes
 
 - *Settings → Pages → Source* must be set to **GitHub Actions** in the repository.
-- Framework caches each loader's output in `src/.observablehq/cache` and only reruns a loader when its own file changes. After changing code in `pipeline/`, run `npm run clean`.
+- Framework caches each loader's output in `src/.observablehq/cache` and only reruns a loader when its own file changes. The memoised frames in `data_cache/frames` carry a hash of the `pipeline/` source, so they rebuild by themselves after a code change (stale copies are deleted). Framework's own loader cache doesn't see `pipeline/` changes, though: after changing code in `pipeline/`, run `npm run clean`.
+- To preview without touching the network (e.g. to check a design change), run `CDC_OFFLINE=1 npm run dev`.
 
 | Variable | Effect |
 |---|---|
 | `CDC_OFFLINE=1` | Never touch the network; serve every request from the cache regardless of age, and fail with a clear message if something is missing (set in the GitHub workflow) |
+
+## Data manifest
+
+Each build writes `manifest.json`: the pipeline code version, the commit, the FIPE reference month, when each raw source was downloaded and row counts of every cleaned table (overall, per year and **per model**). `npm run build` copies it to a stable path, `dist/manifest.json`, so it is served at `<site>/manifest.json`.
+
+In CI, before deploying, the workflow downloads the live manifest and runs
+
+```bash
+uv run python -m pipeline.manifest compare previous-manifest.json dist/manifest.json
+```
+
+The changed metrics go to the job summary. Drops above 10 %, metrics that disappear (e.g. a model whose FIPE version names no longer match its regex) and removed output columns become warnings. Add `--strict` in the workflow to block the deploy on warnings.
 
 ## Tests
 

@@ -85,6 +85,12 @@ A página de perda ano a ano não usa o modelo: ela compara anos-modelo vizinhos
 - **Amostra.** As versões com mais anos-modelo não são necessariamente as mais vendidas: a FIPE não publica volume de vendas.
 - **Elétricos e híbridos** estão no mercado há poucos anos. As curvas deles cobrem só as idades iniciais.
 
-<style>
-.formula { font-family: var(--monospace); font-size: 1rem; padding: 0.5rem 0; }
-</style>
+## Versão dos dados
+
+Cada build publica um manifesto com a versão do código, o mês da tabela FIPE, a data de download de cada fonte e a contagem de linhas de cada tabela (no total, por ano e por modelo). Ele também é publicado em `/manifest.json`, num endereço fixo, para comparar cada atualização com a anterior: se um modelo some ou perde muitos preços, por exemplo porque a FIPE renomeou as versões dele, a publicação avisa (${html`<a href=${FileAttachment("data/manifest.json").href}>ver o arquivo</a>`}).
+
+```js
+const manifesto = await FileAttachment("data/manifest.json").json();
+```
+
+<p class="muted">Código do pipeline: <code>${manifesto.codigo_pipeline}</code>${manifesto.commit ? html` · commit <a href=${`https://github.com/davipferr/car-depreciation-curves/commit/${manifesto.commit}`}><code>${manifesto.commit.slice(0, 7)}</code></a>` : ""}</p>
